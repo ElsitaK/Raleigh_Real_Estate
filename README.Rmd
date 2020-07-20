@@ -1,0 +1,336 @@
+---
+title: "Raleigh Real Estate"
+author: "Elsita Kiekebusch"
+date: "7/17/2020"
+output: rmarkdown::github_document
+---
+
+## Zillow Home Value Index
+
+Comparing home values across various cities in the Raleigh NC area. I used data from available from Zillow at #https://www.zillow.com/research/data/ 
+This data estimates the value of US homes using Zillow's Home Value Index (ZHVI) estimated from 1996 to 2020, and available at several location levels (eg State, City, zip code) and representing several types of homes (eg. single family residences, condos). 
+
+More info about ZHVI here #more about ZHVI here: https://www.zillow.com/research/why-zillow-home-value-index-better-17742/
+"The one-sentence explanation is that Zillow takes all estimated home values 
+for a given region and month (Zestimates), takes a median of these values, 
+applies some adjustments to account for seasonality or errors in individual 
+home estimates, and then does the same across all months over the past 20 years 
+and for many different geography levels (ZIP, neighborhood, city, county, 
+metro, state, and country)."
+
+
+##Packages
+
+```{r suppress, include = FALSE}
+#hide warning messages when loading packages
+defaultW <- getOption("warn") 
+options(warn = -1) 
+```
+
+```{r setup, message = FALSE}
+#packages needed
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+```
+
+```{r unsuppress, include = FALSE}
+#keep warnings from here onward
+options(warn = defaultW)
+```
+
+
+##First Exploration of Data
+
+Here I download the dataset representing the 'middle' market tier, where the ZHVI was extracted for homes falling in between the 35th and 65th percentile of houses. In other words these values are the median (50th percentile) for the entire dataset (more at: https://www.zillow.com/research/zhvi-methodology-2019-deep-26226/).
+
+This dataset includes all homes (single family residences, condos and coops together). I extract data for the state of North Carolina, and then filter for the Raleigh and Durham-Chapel Hill Metro areas. I then select several regions within those areas for further comparison. 
+
+
+```{r firstLook, message=FALSE}
+setwd('~/Documents/Job Search/Data Science/projects/Raleigh_RealEstate')
+all_homes_city <- read_csv("City_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_mon.csv") 
+head(all_homes_city)
+#str(all_homes_city)
+
+all_nc_city <- all_homes_city %>% filter(State == "NC")
+#str(all_nc_city)
+
+dates_only <- all_nc_city[,c(9:301)]
+concise_nc <- all_nc_city %>% select(RegionName, Metro)
+concise_nc <- cbind(concise_nc,dates_only)
+```
+
+Looking at the geographic regions in the Raleigh area, and then in the Chapel-Hill Durham area. 
+
+```{r towns}
+#look at what is within raleigh, and durham-chapel hill
+raleigh_towns <- concise_nc %>%
+  filter(Metro == "Raleigh")
+unique(raleigh_towns$RegionName)
+
+dch_towns <- concise_nc %>%
+  filter(Metro == "Durham-Chapel Hill")
+unique(dch_towns$RegionName)
+```
+
+Here I select the specific regions that I am interested in, prioritizing some of the regions in/near RTP (that is, between the bigger cities of Raleigh, Durham and Chapel Hill) and a few areas of interest south of Raleigh as well. 
+
+```{r regions}
+tri_cities <- concise_nc %>% 
+  filter(RegionName == "Raleigh" | RegionName == "Cary" | RegionName == "Morrisville" | RegionName == "Holly Springs" | RegionName == "Apex" | RegionName == "Garner" | RegionName == 
+           "Durham" | RegionName == "Chapel Hill" | RegionName == "Carrboro") 
+#head(tri_cities)
+```
+
+I need to tidy up the dataset so that the dates are no longer the column names, but rather an important feature for further use. I gather the data into long form and can then visualize. 
+
+```{r gather}
+#ok getting the dates in shape for ggplot
+tri_long <- tri_cities %>% 
+  gather("Date", "ZHVI", -RegionName, -Metro)
+str(tri_long)
+tri_long$Date <- as.Date(tri_long$Date)
+str(tri_long)
+
+ggplot(tri_long, aes(x=Date, y=ZHVI, color = RegionName)) +
+  geom_line() +
+  facet_wrap(~Metro) +
+  scale_y_continuous(labels = comma)
+```
+
+Looks like Chapel Hill is the region with the highest median home values over the entire period. At first glance, looks like for all regions there is strong increase (appreciation) in home value, and this trend seems to become stronger after the 2008 housing crisis (which can also be seen as the dip in values).
+
+##Raleigh Area Home Values
+
+Now I want to focus more on several specific areas near Raleigh / RTP. I highlighted these above but now I will extract them for further use. I create a single dataset that encompasses all these areas, and that combines some of the different types of housing datasets available from zillow. 
+
+Note: Bottom Tier Value covers the 5th-35th percentile of home values, Top Tier covers the 65th-95th percentile of home values. 
+
+
+```{r raleigh, message=FALSE}
+#all homes in Raleigh 
+all_homes <- raleigh_towns %>% 
+  filter(RegionName == "Raleigh" | RegionName == "Cary" | RegionName == "Morrisville" | RegionName == "Holly Springs" | RegionName == "Apex" | RegionName == "Garner") 
+all_homes$Metro <- NULL #dont need this anymore
+all_homes$Type <- "All Homes"
+
+#all single family residences
+sfr_city <- read_csv("City_zhvi_uc_sfr_tier_0.33_0.67_sm_sa_mon.csv")
+sfr_city$Type <- "Single Family Residence"
+
+#all condos and coops
+condos_city <- read_csv("City_zhvi_uc_condo_tier_0.33_0.67_sm_sa_mon.csv")
+condos_city$Type <- "Condos"
+
+#four bedroom houses
+four_bdrm_city <- read_csv("City_zhvi_bdrmcnt_4_uc_sfrcondo_tier_0.33_0.67_sm_sa_mon.csv")
+four_bdrm_city$Type <- "Four Bedroom House"
+
+#top tier (65th-95th percentile housing value)
+#csv name suggests it is 67-100 percentile
+top_tier_city <- read_csv("City_zhvi_uc_sfrcondo_tier_0.67_1.0_sm_sa_mon.csv")
+top_tier_city$Type <- "Top Tier Value"
+
+#bottom tier (5th-35th percentile housing value)
+#csv name suggests it is 0-33 percentile
+bot_tier_city <- read_csv("City_zhvi_uc_sfrcondo_tier_0.0_0.33_sm_sa_mon.csv")
+bot_tier_city$Type <- "Bottom Tier Value"
+
+#put them together! 
+most_data <- rbind(sfr_city, condos_city, four_bdrm_city, top_tier_city, bot_tier_city)
+
+#get data for NC, get dates, city names and the type of data
+most_nc_data <- most_data %>% filter(State == "NC")
+dates <- most_nc_data[,c(9:301)]
+concise_nc_data <- most_nc_data %>% select(RegionName, Type)
+most_concise_nc <- cbind(concise_nc_data, dates)
+
+# get cities of interest
+#i think faster to get cities of interest in first step before gathering
+most_raleigh_cities <- most_concise_nc %>%
+  filter(RegionName == "Raleigh" | RegionName == "Cary" | RegionName == "Morrisville" | RegionName == "Holly Springs" | RegionName == "Apex" | RegionName == "Garner")
+
+all_raleigh_cities <- rbind(all_homes, most_raleigh_cities)
+#quick check
+unique(all_raleigh_cities$RegionName)
+unique(all_raleigh_cities$Type)
+
+#gather eg make long form
+all_raleigh_long <- all_raleigh_cities %>% 
+  gather("Date", "ZHVI", -Type, -RegionName) %>%
+  arrange(Type, RegionName) #organize
+
+all_raleigh_long$Date <- as.Date(all_raleigh_long$Date)
+
+#set order of facets in advance
+all_raleigh_long$Type <- factor(all_raleigh_long$Type, levels = c("Single Family Residence", "Condos", "Four Bedroom House", "Bottom Tier Value", "All Homes", "Top Tier Value"))
+str(all_raleigh_long)
+levels(all_raleigh_long$Type)
+
+#ok first viz attempt
+ggplot(all_raleigh_long, aes(x=Date, y=ZHVI, color = RegionName)) +
+  geom_line() +
+  facet_wrap(~Type)
+```
+
+##Further Visualization by type of home
+
+I'm interested in looking a bit deeper to compare the different types of homes, and I break up the above figure to see some patterns more clearly. 
+Single Family Residences have higher values and appreciate more than Condos within each regions. Top tier homes appreciated more over the time period than bottom tier homes (in other words, the rich get richer.) 
+
+```{r moreViz}
+#SFR vs Condo, Bottom vs Top Tier
+all_raleigh_long %>%
+  filter(Type == "Single Family Residence" | Type == "Condos" | Type == "Bottom Tier Value" | Type == 
+           "Top Tier Value") %>%
+  ggplot(aes(x=Date, y=ZHVI, color = RegionName)) +
+  geom_line() +
+  facet_wrap(~Type) +
+  scale_y_continuous(labels = comma)
+
+all_raleigh_long %>%
+  filter(Type == "Top Tier Value") %>%
+  ggplot(aes(x=Date, y=ZHVI, color = RegionName)) +
+  geom_line() +
+  ggtitle("Top Tier: median of 65-95th Percentile") +
+  scale_y_continuous(labels = comma)
+```
+
+
+##Linear Regression Models
+
+Now I fit a few simple linear regression models to evaluate the trend over time. In other words, I want to quantify the appreciation per year. In order to do this, I extract a measurement of time passed in years from the start date. 
+I first evaluate using the median ZHVI for the city of Raleigh only. 
+
+```{r modSimple}
+#set factor, levels so that all compares to Raleigh
+all_raleigh_long$RegionName <- factor(all_raleigh_long$RegionName, levels = c("Raleigh", "Cary", "Apex", "Morrisville", "Holly Springs", "Garner"))
+
+#tryna get the dates as ordinal numbers, then year
+all_raleigh_long$DateSince1970 <- as.numeric(all_raleigh_long$Date)
+head(all_raleigh_long$DateSince1970)
+all_raleigh_long$OrdinalDay <- all_raleigh_long$DateSince1970 - 9525
+head(all_raleigh_long$OrdinalDay)
+all_raleigh_long$Year <- all_raleigh_long$OrdinalDay / 365
+
+#let's look at median ZHVI only
+all_homes_raleigh_long <- all_raleigh_long %>%
+  filter(Type == "All Homes" & RegionName == "Raleigh")
+#fit model
+mod_time <- glm(ZHVI ~ Year, data = all_homes_raleigh_long)
+summary(mod_time)
+```
+
+It looks like the value of the median home for the city of Raleigh is appreciating at $4159 per year over the 24 year period. What about in other places? Let's compare to this value for Cary.
+
+```{r modCarySimple}
+#let's look at median ZHVI only, for Cary
+all_homes_cary_long <- all_raleigh_long %>%
+  filter(Type == "All Homes" & RegionName == "Cary")
+#fit model
+mod_time_cary <- glm(ZHVI ~ Year, data = all_homes_cary_long)
+summary(mod_time_cary)
+```
+
+By comparison, the median home value in Cary has appreciated $6333 per year over the same 24 year time period. 
+What does this look like visually?
+
+```{r quickRaleighVSCary}
+raleigh_cary_long <- rbind(all_homes_raleigh_long, all_homes_cary_long)
+
+ggplot(raleigh_cary_long, aes(x=Year+1996, y=ZHVI, color = RegionName)) +
+  geom_line() +
+  geom_smooth(method = lm) +
+  xlab("Year") +
+  ggtitle("Median home values (ZHVI) for Raleigh and Cary") +
+  scale_y_continuous(labels = comma)
+```
+
+
+## Single Family Residence VS Condo Home Value in Raleigh
+
+Creating regressions to evaluate appreciation of Single Family Residences and of Condos in Raleigh. 
+
+```{r sfrVScondo}
+#single family residence - model
+sfr_raleigh <- all_raleigh_long %>%
+  filter(Type == "Single Family Residence" & RegionName == "Raleigh")
+sfr_raleigh$Year <- sfr_raleigh$OrdinalDay / 365
+#fit model
+mod_sfr_raleigh <- glm(ZHVI ~ Year, data = sfr_raleigh)
+summary(mod_sfr_raleigh)
+
+#condos - model
+condo_raleigh <- all_raleigh_long %>%
+  filter(Type == "Condos" & RegionName == "Raleigh")
+condo_raleigh$Year <- condo_raleigh$OrdinalDay / 365
+#fit model
+mod_condo_raleigh <- glm(ZHVI ~ Year, data = condo_raleigh)
+summary(mod_condo_raleigh)
+
+#together - estimate suggests difference between the two groups
+comp_raleigh <- rbind(sfr_raleigh, condo_raleigh)
+#fit model
+mod_comp_raleigh <- glm(ZHVI ~ Year + Type, data = comp_raleigh)
+summary(mod_comp_raleigh)
+```
+
+Looks like SFR are appreciating at at $4186 per year, while Condos are appreciating at $2596 per year. All else being equal, condos are worth around $54000 less than SFR. 
+
+```{r vizSFRvsCondos}
+ggplot(comp_raleigh, aes(x=Year+1996, y=ZHVI, color = Type)) +
+  geom_line() +
+  geom_smooth(method = lm) +
+  xlab("Year") +
+  ggtitle("Change in home values for SFR and Condos in Raleigh") +
+  scale_y_continuous(labels = comma)
+```
+
+
+##Tiered home value comparison in Cary
+
+As mentioned above, the data are divided into tiers representing the bottom (5th-35th), middle (35th-65th) and top (65th-95th) percentiles of home values. Do the homes appreciate differently for these groups? We saw some data above suggesting that this was the case. Let's quantify the difference using the data from Cary. 
+
+```{r caryMods}
+#top tier
+top_cary <- all_raleigh_long %>%
+  filter(Type == "Top Tier Value" & RegionName == "Cary")
+#fit model
+mod_top_cary <- glm(ZHVI ~ Year, data = top_cary )
+summary(mod_top_cary )
+
+#middle tier
+mid_cary <- all_raleigh_long %>%
+  filter(Type == "All Homes" & RegionName == "Cary")
+#rename this to fit with the others
+mid_cary$Type <- "Mid Tier Value"
+#fit model
+mod_mid_cary <- glm(ZHVI ~ Year, data = mid_cary )
+summary(mod_mid_cary )
+
+#bottom tier
+bot_cary <- all_raleigh_long %>%
+  filter(Type == "Bottom Tier Value" & RegionName == "Cary")
+#fit model
+mod_bot_cary <- glm(ZHVI ~ Year, data = bot_cary )
+summary(mod_bot_cary )
+```
+
+The appreciation increases at a higher rate as home value increases: $8559 / year, $6333 / year, and $4801 / year for top, middle and bottom tier home values.
+Looking at the graph below, we can see that the line for the top tier home values is the steepest. 
+
+```{r vizCary}
+comp_cary <- rbind(top_cary, mid_cary, bot_cary)
+
+ggplot(comp_cary, aes(x=Year+1996, y=ZHVI, color = Type)) +
+  geom_line() +
+  geom_smooth(method = lm) +
+  xlab("Year") +
+  ggtitle("Change in home value in Cary") +
+  scale_y_continuous(labels = comma)
+```
