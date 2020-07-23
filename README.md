@@ -8,7 +8,7 @@ Zillow Home Value Index
 
 Comparing home values across various cities in the Raleigh NC area. I used data made available by Zillow at \#<https://www.zillow.com/research/data/> This data estimates the value of US homes using Zillow's Home Value Index (ZHVI) estimated from 1996 to 2020, and available at several location levels (eg State, City, zip code) and representing several types of homes (eg. single family residences, condos).
 
-More info about ZHVI here \#more about ZHVI here: <https://www.zillow.com/research/why-zillow-home-value-index-better-17742/> "The one-sentence explanation is that Zillow takes all estimated home values for a given region and month (Zestimates), takes a median of these values, applies some adjustments to account for seasonality or errors in individual home estimates, and then does the same across all months over the past 20 years and for many different geography levels (ZIP, neighborhood, city, county, metro, state, and country)."
+More info about ZHVI here: \#<https://www.zillow.com/research/why-zillow-home-value-index-better-17742/> "The one-sentence explanation is that Zillow takes all estimated home values for a given region and month (Zestimates), takes a median of these values, applies some adjustments to account for seasonality or errors in individual home estimates, and then does the same across all months over the past 20 years and for many different geography levels (ZIP, neighborhood, city, county, metro, state, and country)."
 
 Packages
 --------
